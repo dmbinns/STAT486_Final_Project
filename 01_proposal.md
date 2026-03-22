@@ -317,4 +317,44 @@ I can help you:
 
 Just tell me 👍
 
+---
+
+# Final Question
+How do location characteristics and business attributes influence restaurant ratings across major Utah cities, and can we accurately predict whether a business will receive a high rating (≥ 4.0)?
+
+---
+
+# Candidate target variable for supervised analysis
+Target: High vs. low rating
+
+1 = rating ≥ 4.0
+0 = rating < 4.0
+
+The primary target variable will be a binary indicator of restaurant success based on Yelp ratings. Restaurants with a rating of 4.0 or higher will be classified as “high-performing” (1), while those below 4.0 will be classified as “low-performing” (0).
+
+---
+
+# Feasibility
+
+---
+
+# Ethical/legal considerations
+Bias may be introduced by users providing ratings. Ratings may not reflect the true quality of the service from the business 
+---
+
+# Planned additional ML methods
+
+Clustering (K-means / hierarchical)** to:
+  * example: Segment neighborhoods into:
+    * “High-end dining zones”
+    * “Student budget zones”
+    * “Underserved areas”
+   
+In addition to supervised learning, we will apply K-means clustering to identify patterns among restaurants and geographic areas based on features such as rating, review count, price level, and demographic variables (e.g., income and population density).
+
+K-means clustering will allow us to group businesses into similar segments without using a target variable, helping us uncover underlying structure in the data. For example, clusters may represent high-performing restaurants in high-income areas, lower-cost restaurants in student-dense regions, or areas with lower competition.
+
+We will experiment with different numbers of clusters (K) and evaluate results using methods such as the elbow method to determine an appropriate number of groups. The resulting clusters will be interpreted to better understand how business success varies across locations and market conditions, providing insights beyond the supervised prediction task.
+
+
 
