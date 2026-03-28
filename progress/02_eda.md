@@ -79,6 +79,27 @@ The summary statistics reveal several important patterns:
 * Socioeconomic variables such as income and education show **substantial variation**, supporting their inclusion as predictors.
 * The categorical variable is **high-dimensional and sparse**, which may require grouping or feature engineering before modeling.
 
+## 4) Visual Exploration
+
+### Visualization 1: Popularity vs. Neighborhood Wealth
+**[Insert your Scatter Plot of median_income vs. review_count here]**
+* **Description:** A scatter plot with a trend line showing the relationship between zip code income and gym reviews.
+* **Relevance:** This addresses if "Success" (engagement) is concentrated in high-income areas or if fitness popularity is independent of neighborhood wealth.
+
+### Visualization 2: Engagement Levels by Gym Category
+**[Insert your Boxplot of category vs. review_count here]**
+* **Description:** A boxplot showing the distribution of review counts across the five specialized categories.
+* **Relevance:** This helps determine if certain niches (like Yoga) naturally generate more public engagement than others (like Martial Arts), which is critical for my predictive model.
+
+---
+
+## 5) Challenges and Reflection
+
+### Challenges Faced
+A significant challenge was the discovery that **business closure data (`is_closed`) and price data were essentially non-existent** in the current Yelp API pull for Utah. Initially, I intended to predict business failure, but the lack of "closed" gyms in the search results made this unfeasible. 
+
+### Current Concerns
+My primary concern is the **skewness of the target variable (`review_count`)**. Most gyms have fewer than 20 reviews, while a few have hundreds. I will likely need to apply a **Log Transformation** to the target variable before modeling to ensure that outliers do not disproportionately bias the regression results.
 
 
 
