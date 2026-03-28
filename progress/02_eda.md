@@ -42,16 +42,51 @@ This project integrates two primary data sources to analyze the Utah fitness mar
 ## 3) Summary Statistics
 
 ### Numeric Variables
-* **Sample Size:** N = [Insert your total row count here]
-* **Target Variable (`review_count`):** Mean: [X], SD: [Y]. (Note: Distribution is right-skewed).
-* **Demographics:** Median Income ranges from $[Min] to $[Max] across sampled zip codes.
+
+* **Sample Size:** N = 1,812 observations
+
+* **Target Variable (`review_count`):**
+  Mean = 5.17, Standard Deviation = 16.06.
+  The distribution is **highly right-skewed**, with a median of 0 and a maximum of 220. This indicates that most businesses receive very few reviews, while a small number of businesses receive substantially higher engagement.
+
+* **Rating:**
+  Mean = 2.04, SD = 2.25. The median rating is 0, suggesting that many businesses have no recorded ratings, while those with ratings tend to be concentrated near the upper end (close to 5.0).
+
+* **Median Income:**
+  Mean = $96,539 (SD = $25,525), ranging from $41,964 to $171,151, indicating substantial socioeconomic variation across zip codes.
+
+* **Population (`total_pop`):**
+  Mean = 35,895 (SD = 16,692), showing variation in the size of communities where businesses are located.
+
+* **Education (`pct_bachelors`):**
+  Mean = 16.92% (SD = 5.44%), with values ranging from about 2% to 30%, reflecting variation in educational attainment.
+
+---
 
 ### Categorical Variables
+
 * **Category Frequency Distribution:**
-    * Gyms: [Count]
-    * Yoga: [Count]
-    * Pilates: [Count]
-    * [List others...]
+  The dataset contains **87 unique business categories**, though many categories have very low counts (some appearing only once). This suggests a **highly imbalanced categorical distribution**, with a long tail of niche fitness services.
+
+---
 
 ### Interpretation
-The summary statistics indicate a high variance in `review_
+
+The summary statistics reveal several important patterns:
+
+* The **extreme right skew** and high variance in `review_count` indicate that business popularity is highly uneven, making it a challenging but meaningful target variable.
+* A large number of businesses have **zero reviews and zero ratings**, which may reflect newly established businesses or missing Yelp engagement data.
+* Socioeconomic variables such as income and education show **substantial variation**, supporting their inclusion as predictors.
+* The categorical variable is **high-dimensional and sparse**, which may require grouping or feature engineering before modeling.
+
+
+
+
+
+
+
+
+
+
+
+
