@@ -23,20 +23,36 @@ This project integrates two primary data sources to analyze the Utah fitness mar
 ## 2) Data Description and Variables
 
 ### Key Variables
-| Variable | Type | Description |
-| :--- | :--- | :--- |
-| `review_count` | Numeric | **Target Variable:** Total Yelp reviews (proxy for business volume/popularity). |
-| `median_income`| Numeric | Median household income of the gym's zip code. |
-| `category` | Categorical | The primary business niche (Yoga, Pilates, Martial Arts, etc.). |
-| `rating` | Numeric | Average star rating (1.0 to 5.0). |
-| `distance` | Numeric | The distance (in meters) from the center of the search area. |
+The dataset consists of features across two primary domains: Business Performance (Yelp) and Neighborhood Demographics (U.S. Census).
 
-### Preprocessing Steps
-1.  **Filtering:** Restricted search to Utah-specific zip codes.
-2.  **Missing Value Handling:** The `price` variable was excluded due to a **98% missingness rate**. Business closure status (`is_closed`) was removed as a target because 100% of the retrieved sample was active.
-3.  **Standardization:** Zip codes were converted to strings to ensure a clean join between Census and Yelp data frames.
-4.  **Feature Engineering:** Created a `main_cat` variable to simplify Yelp’s nested category lists into a single primary label.
+| Variable | Source | Type | Description |
+| :--- | :--- | :--- | :--- |
+| **`review_count`** | Yelp | Numeric | **Target Variable:** Total number of reviews; used as a proxy for customer volume and engagement. |
+| **`rating`** | Yelp | Numeric | The average star rating (1.0–5.0) reflecting customer satisfaction. |
+| **`category`** | Yelp | Categorical | The specific fitness niche (e.g., `yoga`, `gyms`, `martialarts`). |
+| **`median_income`** | Census | Numeric | Median household income of the zip code where the business is located. |
+| **`pct_bachelors`** | Census | Numeric | Calculated percentage of the population with a Bachelor's degree or higher. |
+| **`total_pop`** | Census | Numeric | Total population of the ZCTA (Zip Code Tabulation Area). |
+| **`median_age`** | Census | Numeric | The median age of residents in the neighborhood. |
+| **`distance`** | Yelp | Numeric | The distance (in meters) from the center of the search area. |
+| **`latitude` / `longitude`** | Yelp | Numeric | Geographic coordinates used for mapping and spatial density analysis. |
 
+### Target Variable
+The primary target variable for this analysis is **`rating`**. 
+
+* **Rationale:** While `review_count` measures market reach, `rating` (on a scale of 1.0 to 5.0) serves as a proxy for **service quality and consumer satisfaction**. 
+* **Analytical Goal:** We are investigating whether higher neighborhood income and specific fitness categories (e.g., boutique Pilates vs. general gyms) are predictive of higher customer satisfaction scores. This allows us to see if "premium" neighborhoods actually yield "premium" service experiences.
+
+### Preprocessing Documentation
+To prepare the data for a regression on `rating`, the following steps were completed:
+
+1.  **Deduplication:** A strict deduplication process was performed using a composite key of `name`, `latitude`, and `longitude`. This prevents franchise locations that appear in multiple adjacent zip code searches from biasing the satisfaction metrics.
+2.  **Feature Engineering (`pct_bachelors`):** Created a normalized education metric by dividing `bachelors_degrees` by the `total_pop`. This allows the model to test if educational attainment in a neighborhood correlates with the types of highly-rated gyms that open there.
+3.  **Handling Missing Values:**
+    * **Target Cleaning:** Any businesses with a `rating` of 0 or null (unrated) were removed to ensure the model is trained on verified consumer feedback.
+    * **Price:** The `price` variable was dropped as it was unavailable for over 90% of the Utah fitness sample.
+4.  **Category Extraction:** Extracted the primary `alias` from Yelp’s nested category list (e.g., `yoga`, `martialarts`) to allow for categorical encoding.
+5.  **Weighting Consideration:** During EDA, we noted that `rating` is often influenced by `review_count` (e.g., a 5.0 rating with 2 reviews is less reliable than a 4.5 rating with 200 reviews). We documented this relationship to potentially use `review_count` as a control variable or weight in future modeling.
 ---
 
 ## 3) Summary Statistics
