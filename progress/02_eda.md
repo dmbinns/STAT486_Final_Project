@@ -27,8 +27,8 @@ The dataset consists of features across two primary domains: Business Performanc
 
 | Variable | Source | Type | Description |
 | :--- | :--- | :--- | :--- |
-| **`review_count`** | Yelp | Numeric | **Target Variable (log-transformed):** Total number of reviews; used as a proxy for customer volume and engagement. |
-| **`rating`** | Yelp | Numeric | **Predictor:** The average star rating (1.0–5.0) reflecting customer satisfaction. |
+| **`review_count`** | Yelp | Numeric | **Target Variable:** Total number of reviews; used as a proxy for customer volume and engagement. |
+| **`rating`** | Yelp | Numeric | The average star rating (1.0–5.0) reflecting customer satisfaction. |
 | **`category`** | Yelp | Categorical | The specific fitness niche (e.g., `yoga`, `gyms`, `martialarts`). |
 | **`median_income`** | Census | Numeric | Median household income of the zip code where the business is located. |
 | **`pct_bachelors`** | Census | Numeric | Calculated percentage of the population with a Bachelor's degree or higher. |
@@ -38,41 +38,41 @@ The dataset consists of features across two primary domains: Business Performanc
 | **`latitude` / `longitude`** | Yelp | Numeric | Geographic coordinates used for mapping and spatial density analysis. |
 
 ### Target Variable
-The primary target variable for this analysis is **`review_count`** (log-transformed).
+The primary target variable for this analysis is **`rating`**. 
 
-* **Rationale:** The research question asks about *popularity and consumer engagement* — review count is a direct proxy for customer volume and market reach, making it the most appropriate target. `rating` is retained as a predictor variable; its negative correlation with review count (r = −0.30) suggests that engagement and satisfaction are related but distinct dimensions worth modeling separately.
-* **Analytical Goal:** We are investigating whether neighborhood socio-economic factors and fitness category predict how much customer engagement a business attracts. A log transformation (`log1p`) is applied to `review_count` to address its severe right skew before modeling.
+* **Rationale:** While `review_count` measures market reach, `rating` (on a scale of 1.0 to 5.0) serves as a proxy for **service quality and consumer satisfaction**. 
+* **Analytical Goal:** We are investigating whether higher neighborhood income and specific fitness categories (e.g., boutique Pilates vs. general gyms) are predictive of higher customer satisfaction scores. This allows us to see if "premium" neighborhoods actually yield "premium" service experiences.
 
 ### Preprocessing Documentation
-To prepare the data for a regression on `review_count`, the following steps were completed:
+To prepare the data for a regression on `rating`, the following steps were completed:
 
-1.  **Deduplication:** A strict deduplication process was performed using a composite key of `name`, `latitude`, and `longitude`. This prevents franchise locations that appear in multiple adjacent zip code searches from biasing the satisfaction metrics.
-2.  **Feature Engineering (`pct_bachelors`):** Created a normalized education metric by dividing `bachelors_degrees` by the `total_pop`. This allows the model to test if educational attainment in a neighborhood correlates with the types of highly-rated gyms that open there.
+
+education metric by dividing `bachelors_degrees` by the `total_pop`. This allows the model to test if educational attainment in a neighborhood correlates with the types of highly-rated gyms that open there.
 3.  **Handling Missing Values:**
-    * **Unrated Businesses Removed:** Any businesses with a `rating` of 0 or null were removed. These businesses also had zero reviews, so their exclusion is consistent across both the target and predictor variables, and ensures the model is trained on businesses with verified consumer activity.
+    * **Target Cleaning:** Any businesses with a `rating` of 0 or null (unrated) were removed to ensure the model is trained on verified consumer feedback.
     * **Price:** The `price` variable was dropped as it was unavailable for over 90% of the Utah fitness sample.
 4.  **Category Extraction:** Extracted the primary `alias` from Yelp’s nested category list (e.g., `yoga`, `martialarts`) to allow for categorical encoding.
-5.  **Weighting Consideration:** During EDA, we noted that `rating` is influenced by sample size — a 5.0 rating with 2 reviews is less reliable than a 4.5 rating with 200 reviews. Since `rating` is now a predictor rather than the target, we may weight its influence or engineer a confidence-adjusted version in future modeling.
+5.  **Weighting Consideration:** During EDA, we noted that `rating` is often influenced by `review_count` (e.g., a 5.0 rating with 2 reviews is less reliable than a 4.5 rating with 200 reviews). We documented this relationship to potentially use `review_count` as a control variable or weight in future modeling.
 ---
 
 ## 3) Summary Statistics
 
 ### Numeric Variables
 
-* **Sample Size:** N = 868 (businesses with a verified rating; unrated businesses excluded)
+* **Sample Size:** N = 1,812 observations
 
 * **Target Variable (`review_count`):**
-  Mean = 10.80, SD = 21.87, Median = 3, Max = 220.
-  The distribution is **highly right-skewed** — most businesses have fewer than 10 reviews while a small number drive the upper tail. A `log1p` transformation is applied before modeling to normalize the distribution.
+  Mean = 5.17, Standard Deviation = 16.06.
+  The distribution is **highly right-skewed**, with a median of 0 and a maximum of 220. This indicates that most businesses receive very few reviews, while a small number of businesses receive substantially higher engagement.
 
-* **Rating (predictor):**
-  Mean = 4.25, SD = 1.09, Median = 5.0. Ratings cluster heavily near the top of the scale, with very little spread below 3.0. This ceiling effect makes it unsuitable as a regression target but informative as a predictor.
+* **Rating:**
+  Mean = 2.04, SD = 2.25. The median rating is 0, suggesting that many businesses have no recorded ratings, while those with ratings tend to be concentrated near the upper end (close to 5.0).
 
 * **Median Income:**
   Mean = $96,539 (SD = $25,525), ranging from $41,964 to $171,151, indicating substantial socioeconomic variation across zip codes.
 
 * **Population (`total_pop`):**
-  Mean = 35,729 (SD = 16,471), showing variation in the size of communities where businesses are located.
+  Mean = 35,895 (SD = 16,692), showing variation in the size of communities where businesses are located.
 
 * **Education (`pct_bachelors`):**
   Mean = 16.92% (SD = 5.44%), with values ranging from about 2% to 30%, reflecting variation in educational attainment.
@@ -152,13 +152,8 @@ The summary statistics reveal several important patterns:
 ### Challenges Faced
 A significant challenge was the discovery that **business closure data (`is_closed`) and price data were essentially non-existent** in the current Yelp API pull for Utah. Initially, I intended to predict business failure, but the lack of "closed" gyms in the search results made this unfeasible. 
 
-### Target Variable Selection
-A key challenge was deciding between **`rating`** and **`review_count`** as the target variable. Initially, `rating` seemed appealing as a measure of service quality — a higher rating could signal business success. However, after exploring the data, we found that ratings among Utah fitness businesses are heavily clustered near 5.0 (median = 5.0), leaving very little variation to model. A regression on `rating` would have struggled to find meaningful signal.
-
-We shifted to **`review_count`** as the target, which better aligns with the research question's focus on *popularity and consumer engagement*. It also has substantially more variation across businesses, making it a more tractable and informative regression target. The tradeoff is that review count is a noisier proxy for success — a business with many reviews isn't necessarily better, just more visible — but this limitation is noted and `rating` is retained as a predictor to capture the satisfaction dimension.
-
 ### Current Concerns
-My primary concern is the **skewness of the target variable (`review_count`)**. Most gyms have fewer than 10 reviews, while a few have hundreds. A **log transformation (`log1p`)** will be applied before modeling to prevent high-engagement outliers from disproportionately influencing the regression results.
+My primary concern is the **skewness of the target variable (`review_count`)**. Most gyms have fewer than 20 reviews, while a few have hundreds. I will likely need to apply a **Log Transformation** to the target variable before modeling to ensure that outliers do not disproportionately bias the regression results.
 
 
 
