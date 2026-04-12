@@ -1,6 +1,6 @@
 # Where Will a Gym Thrive in Utah?
 ### STAT 486 Final Project Presentation
-**Aubrey Coons & Dylan Binns | April 2026**
+** aubs and daniella and sedona | April 2026**
 
 ---
 
