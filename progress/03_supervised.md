@@ -2,60 +2,81 @@
 
 ## 1) Problem Context and Research Question
 
-This project analyzes the Utah fitness business market by combining Yelp Fusion API business data with U.S. Census demographic data. The central question is: **can neighborhood socio-economic characteristics (income, education) and business category predict customer engagement — measured by review count — for fitness businesses in Utah?**
+This project analyzes the Utah fitness business market by combining Yelp Fusion API data with U.S. Census ACS demographics. The central question is: **can neighborhood characteristics and business type predict whether a fitness business will thrive in Utah?**
+
+We define *thriving* as: open on Yelp AND rating ≥ 4.0 AND review_count ≥ 10. We also model a continuous `success_score` = 0.5 × normalized(rating) + 0.5 × normalized(log_reviews).
 
 ---
 
 ## 2) Supervised Models Implemented
 
-Both models predict `log_review_count` (log-transformed review count), using an 80/20 train/test split with 5-fold cross-validation for tuning. All preprocessing (imputation, scaling, one-hot encoding) is handled inside a `sklearn` Pipeline to prevent data leakage.
+All preprocessing (median imputation, standard scaling, one-hot encoding) is inside a `sklearn Pipeline` to prevent data leakage. GridSearchCV with 5-fold CV is used for hyperparameter tuning. `random_state=42` throughout.
 
-| Model | Type | Key Hyperparameters Explored | Best Params | CV RMSE | Test RMSE | Test R² |
-|---|---|---|---|---|---|---|
-| Ridge Regression | Regularized linear regression (baseline) | `alpha`: [0.1, 1.0, 10.0, 100.0] | `alpha = 10.0` | 1.011 | 0.878 | 0.047 |
-| Random Forest | Ensemble tree-based regressor | `n_estimators`: [100, 200]; `max_depth`: [None, 10, 20]; `min_samples_split`: [2, 5] | depth=10, split=2, trees=100 | 0.797 | 0.734 | 0.334 |
+### Task A: Binary Classifier — Will this business thrive?
 
-**Features used:** `rating`, `median_income`, `pct_bachelors`, `total_pop`, `median_age`, `distance`, `category` (one-hot encoded)
+**Dataset:** 164 businesses with sufficient review history (101 thriving / 63 not thriving)
+**Split:** 80/20 stratified
 
-**Validation setup:** `GridSearchCV` with 5-fold CV on the training set; final evaluation on a held-out test set (20%).
+| Model | Best Params | AUC | Accuracy |
+|---|---|---|---|
+| Logistic Regression | C=0.1 | 0.923 | 82.1% |
+| **Random Forest** | depth=None, trees=200, split=2 | **0.927** | **87.9%** |
+| Gradient Boosting | lr=0.05, depth=3, trees=100 | 0.892 | 84.8% |
+
+**Winner: Random Forest** (AUC=0.927, Acc=87.9%)
+
+Top features (Random Forest classifier):
+1. `category_group_general_gym` — General gyms thrive at far higher rates than boutique formats
+2. `category_group_mind_body` — Yoga/pilates studios also perform well
+3. `income_per_competitor` — Higher income relative to competition density is strongly predictive
+4. `market_gap` — Underserved markets with large prime-age populations favor thriving
+5. `median_income` — Wealthier neighborhoods support fitness business survival
+
+### Task B: Regressor — How successful will an open business be?
+
+**Dataset:** 1,080 open businesses (continuous success_score target)
+**Split:** 80/20
+
+| Model | Best Params | RMSE | R² |
+|---|---|---|---|
+| Ridge | alpha=100 | 0.278 | 0.220 |
+| Random Forest | depth=5, trees=100 | 0.279 | 0.215 |
+| **Gradient Boosting** | lr=0.05, depth=3, trees=200 | **0.263** | **0.244** |
+
+**Winner: Gradient Boosting** (R²=0.244, RMSE=0.263)
+
+Top features (Gradient Boosting regressor):
+1. `competition_3km` — More nearby competitors → lower success scores
+2. `median_age` — Older neighborhoods correlate with higher engagement
+3. `pct_bachelors` — Education level predicts willingness to engage with fitness
+4. `market_gap` — Underserved markets show higher success scores
+5. `median_income` — Income remains a significant predictor
 
 ---
 
 ## 3) Model Comparison and Selection
 
-Random Forest outperformed Ridge Regression on every metric — lower test RMSE (0.734 vs. 0.878) and substantially higher R² (0.334 vs. 0.047). The gap is large: Ridge explains almost none of the variance in log review count, suggesting that the relationships between features and engagement are non-linear and involve interactions that a linear model cannot capture.
+For the classification task, Random Forest narrowly leads on AUC (0.927 vs. 0.923 for LR). The AUC gap is small but RF also outperforms on accuracy (87.9% vs. 82.1%), making it the preferred classifier.
 
-The most notable challenge was the low overall explanatory power of the feature set. Even the Random Forest explains only ~33% of variance, which aligns with the EDA finding that demographic variables (income, education) have near-zero correlation with review count. Most of the signal comes from `rating` and `distance`, not neighborhood socio-economics.
-
-Overfitting was a minor concern for Random Forest — the CV RMSE (0.797) is higher than the test RMSE (0.734), indicating reasonable but not perfect generalization. Constraining `max_depth` to 10 helped prevent deeper overfitting.
+For regression, Gradient Boosting achieves the best R² (0.244) and RMSE (0.263). The moderate R² reflects inherent noise in Yelp engagement data — some thriving businesses simply haven't been discovered yet, while some non-thriving businesses have inflated review counts from early hype.
 
 ---
 
-## 4) Explainability and Interpretability
+## 4) Explainability
 
-Feature importances from the best Random Forest model are shown below:
+The classifier's most important features confirm two key hypotheses:
+1. **Business type matters most** — general gyms have broader market appeal than boutique formats
+2. **Competition-adjusted income is the key environmental signal** — a wealthy neighborhood with few competitors is the ideal location
 
-| Rank | Feature | Importance |
-|---|---|---|
-| 1 | `rating` | 0.556 |
-| 2 | `distance` | 0.106 |
-| 3 | `pct_bachelors` | 0.080 |
-| 4 | `median_income` | 0.053 |
-| 5 | `category_gyms` | 0.045 |
-| 6 | `total_pop` | 0.039 |
-| 7 | `median_age` | 0.033 |
-| 8 | `category_yoga` | 0.012 |
-| 9 | `category_healthtrainers` | 0.008 |
-| 10 | `category_climbing` | 0.007 |
-
-**Interpretation:** `rating` dominates at 55.6% of total importance — businesses with higher star ratings tend to accumulate more reviews, consistent with the positive feedback loop where satisfied customers are more likely to leave reviews. `distance` (from the search centroid) ranks second, suggesting that businesses closer to population centers see more engagement. Neighborhood income and education contribute modestly (combined ~13%), confirming the EDA finding that demographics are not strong drivers of fitness business engagement on their own. Gym category accounts for ~4.5%, reflecting that general gyms attract broader audiences than boutique categories like yoga or pilates.
+The regressor shifts emphasis toward **competition density and demographics**, suggesting that for businesses already open, the local market environment explains variance in how well they do rather than their category.
 
 ---
 
 ## 5) Final Takeaways
 
-The supervised learning analysis reveals that **business-level attributes — particularly quality (`rating`) and location accessibility (`distance`) — are far more predictive of customer engagement than neighborhood demographics.** Income and education level have limited predictive value, challenging the initial hypothesis that wealthier, more educated neighborhoods would produce more engaged fitness consumers.
+- Random Forest (AUC=0.927) can meaningfully predict whether a Utah fitness business will thrive, well above chance
+- Business category (general gym vs. mind-body vs. other) is the single strongest signal
+- After category, the best location signal is `income_per_competitor` — places where potential income exceeds the competitive supply
+- R² of 0.244 on success_score indicates that not all variance is captured; business-specific factors (marketing, management quality, age of business) not available via Yelp would likely improve the model substantially
 
-Random Forest is the preferred model for this task due to its ability to capture non-linear relationships and feature interactions. However, the moderate R² (0.334) indicates that important drivers of review count — such as marketing, brand recognition, or time in business — are not captured in the current feature set. Future work should consider incorporating business age or social media presence as additional predictors.
-
-In answer to the research question: neighborhood socio-economics have a **weak and indirect** influence on fitness business popularity in Utah. Category matters at the margins (gyms outperform boutique formats), but the strongest predictor of how many reviews a business accumulates is simply how good it is.
+Figures: `thriving_model/figures/03a_roc_curves.png`, `03a_feature_importance.png`, `03b_regression_comparison.png`, `03b_feature_importance.png`
