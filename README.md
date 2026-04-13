@@ -1,6 +1,6 @@
 # Where Will a Gym Thrive in Utah?
 
-**STAT 486 Final Project — Aubrey Coons & Dylan Binns**
+**STAT 486 Final Project — Aubrey Coons-Call, Daniela Binns, and Sedona**
 
 A data science pipeline that predicts whether a fitness business will thrive in Utah using Yelp business data, U.S. Census demographics, and machine learning.
 
