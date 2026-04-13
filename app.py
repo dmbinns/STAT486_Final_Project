@@ -9,6 +9,12 @@ import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
 
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.pipeline import Pipeline
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.impute import SimpleImputer
+
 # ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="Utah Fitness Business Explorer",
@@ -32,6 +38,44 @@ def load_data():
     return clf, full
 
 clf_df, full_df = load_data()
+
+NUMERIC_FEATURES = [
+    'median_income', 'median_home_value', 'median_age',
+    'pct_bachelors', 'pct_prime_gym_age', 'total_pop',
+    'competition_1km', 'competition_3km',
+    'market_gap', 'gym_density_per_1k', 'income_per_competitor', 'price',
+]
+CATEGORICAL_FEATURES = ['category_group']
+ALL_FEATURES = NUMERIC_FEATURES + CATEGORICAL_FEATURES
+
+@st.cache_resource
+def train_model():
+    df = pd.read_csv("thriving_model/data/features_classifier.csv", dtype={"zip_code": str})
+    X = df[ALL_FEATURES]
+    y = df['is_thriving'].astype(int)
+
+    numeric_transformer = Pipeline([
+        ('imputer', SimpleImputer(strategy='median')),
+        ('scaler', StandardScaler()),
+    ])
+    categorical_transformer = Pipeline([
+        ('imputer', SimpleImputer(strategy='most_frequent')),
+        ('onehot', OneHotEncoder(handle_unknown='ignore', sparse_output=False)),
+    ])
+    preprocessor = ColumnTransformer([
+        ('num', numeric_transformer, NUMERIC_FEATURES),
+        ('cat', categorical_transformer, CATEGORICAL_FEATURES),
+    ])
+    model = Pipeline([
+        ('pre', preprocessor),
+        ('model', GradientBoostingClassifier(
+            n_estimators=200, learning_rate=0.05, max_depth=3, random_state=42
+        )),
+    ])
+    model.fit(X, y)
+    return model
+
+gbc_model = train_model()
 
 CATEGORY_LABELS = {
     "general_gym": "General Gym",
@@ -298,7 +342,8 @@ with tab3:
 with tab4:
     st.subheader("Location Scorer — Should I Open Here?")
     st.markdown(
-        "Pick a zip code and business type to see what the data says about your chances."
+        "Pick a zip code and business type. The app auto-fills market conditions from "
+        "Census + Yelp data and runs them through the trained Gradient Boosting classifier."
     )
 
     col_s1, col_s2 = st.columns([1, 1])
@@ -312,137 +357,114 @@ with tab4:
             format_func=lambda x: CATEGORY_LABELS.get(x, x),
         )
 
-    # Pull zip-level stats
     zip_data = clf_df[clf_df["zip_code"] == selected_zip]
-    cat_data = clf_df[clf_df["category_group"] == selected_cat]
-    combo_data = zip_data[zip_data["category_group"] == selected_cat]
 
     if len(zip_data) == 0:
         st.warning("No data for this ZIP code.")
     else:
         city_name = zip_data["city"].mode()[0] if len(zip_data) > 0 else ""
+        profile = zip_data[NUMERIC_FEATURES].mean()
 
         st.markdown(f"### {selected_zip} — {city_name}")
         st.markdown(f"**Business type:** {CATEGORY_LABELS.get(selected_cat, selected_cat)}")
+        st.markdown("**Adjust market conditions** (pre-filled from zip data):")
 
-        # Overall zip thriving rate
-        zip_thriving = zip_data["is_thriving"].mean()
-        cat_thriving = cat_data["is_thriving"].mean()
-        overall_thriving = clf_df["is_thriving"].mean()
+        col_a1, col_a2, col_a3 = st.columns(3)
+        with col_a1:
+            comp_1km = st.number_input("Competitors within 1km", min_value=0, max_value=50,
+                                       value=int(profile["competition_1km"]))
+            comp_3km = st.number_input("Competitors within 3km", min_value=0, max_value=100,
+                                       value=int(profile["competition_3km"]))
+        with col_a2:
+            price = st.selectbox("Price tier", [0, 1, 2, 3, 4],
+                                 index=int(profile["price"]) if not np.isnan(profile["price"]) else 0,
+                                 format_func=lambda x: ["Unknown", "$", "$$", "$$$", "$$$$"][x])
+        with col_a3:
+            total_pop = st.number_input("ZIP population", min_value=0, max_value=200000,
+                                        value=int(profile["total_pop"]))
 
-        # Combo rate (if data exists)
-        combo_thriving = combo_data["is_thriving"].mean() if len(combo_data) > 0 else None
+        # Recompute derived features from adjustments
+        gyms_in_zip = comp_3km  # proxy
+        market_gap = profile["pct_prime_gym_age"] / 100 * total_pop / (gyms_in_zip + 1)
+        gym_density = comp_3km / (total_pop / 1000) if total_pop > 0 else 0
+        income_per_comp = profile["median_income"] / (comp_3km + 1)
 
-        # Key metrics
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric(
-            "ZIP Thriving Rate (all types)",
-            f"{zip_thriving * 100:.0f}%",
-            delta=f"{(zip_thriving - overall_thriving) * 100:+.0f}% vs avg",
-        )
-        m2.metric(
-            f"{CATEGORY_LABELS.get(selected_cat,'Type')} Rate (all ZIPs)",
-            f"{cat_thriving * 100:.0f}%",
-            delta=f"{(cat_thriving - overall_thriving) * 100:+.0f}% vs avg",
-        )
-        if combo_thriving is not None:
-            m3.metric(
-                "This ZIP × Type combo",
-                f"{combo_thriving * 100:.0f}%",
-                delta=f"{int(len(combo_data))} businesses observed",
-            )
-        else:
-            m3.metric("This ZIP × Type combo", "No data", delta="0 observed")
+        input_row = pd.DataFrame([{
+            "median_income": profile["median_income"],
+            "median_home_value": profile["median_home_value"],
+            "median_age": profile["median_age"],
+            "pct_bachelors": profile["pct_bachelors"],
+            "pct_prime_gym_age": profile["pct_prime_gym_age"],
+            "total_pop": total_pop,
+            "competition_1km": comp_1km,
+            "competition_3km": comp_3km,
+            "market_gap": market_gap,
+            "gym_density_per_1k": gym_density,
+            "income_per_competitor": income_per_comp,
+            "price": price,
+            "category_group": selected_cat,
+        }])
 
-        avg_market_gap = zip_data["market_gap"].mean()
-        overall_gap = clf_df["market_gap"].mean()
-        m4.metric(
-            "Market Gap",
-            f"{avg_market_gap:,.0f}",
-            delta=f"{(avg_market_gap - overall_gap):+,.0f} vs avg",
-        )
+        thriving_prob = gbc_model.predict_proba(input_row)[0][1]
 
         st.divider()
 
-        col_g1, col_g2 = st.columns(2)
+        # Gauge chart
+        fig_gauge = go.Figure(go.Indicator(
+            mode="gauge+number",
+            value=round(thriving_prob * 100, 1),
+            number={"suffix": "%"},
+            title={"text": "Predicted Thriving Probability", "font": {"size": 18}},
+            gauge={
+                "axis": {"range": [0, 100]},
+                "bar": {"color": "#2ecc71" if thriving_prob >= 0.65 else "#f39c12" if thriving_prob >= 0.45 else "#e74c3c"},
+                "steps": [
+                    {"range": [0, 45], "color": "#fde8e8"},
+                    {"range": [45, 65], "color": "#fef3cd"},
+                    {"range": [65, 100], "color": "#d4f5e2"},
+                ],
+                "threshold": {
+                    "line": {"color": "black", "width": 3},
+                    "thickness": 0.75,
+                    "value": thriving_prob * 100,
+                },
+            },
+        ))
+        fig_gauge.update_layout(height=300, margin={"t": 40, "b": 0, "l": 40, "r": 40})
 
+        col_g1, col_g2 = st.columns([1, 1])
         with col_g1:
-            st.markdown("**ZIP Code Profile**")
-            profile_cols = {
-                "median_income": "Median Income",
-                "median_home_value": "Median Home Value",
-                "pct_prime_gym_age": "% Prime Gym Age (20–44)",
-                "pct_bachelors": "% Bachelor's Degree",
-                "total_pop": "Total Population",
-                "competition_1km": "Competitors within 1km",
-                "competition_3km": "Competitors within 3km",
-                "market_gap": "Market Gap Score",
-                "gym_density_per_1k": "Gym Density (per 1k pop)",
-            }
-            profile = zip_data[list(profile_cols.keys())].mean()
-            avg_profile = clf_df[list(profile_cols.keys())].mean()
-
-            rows = []
-            for col_key, col_name in profile_cols.items():
-                val = profile[col_key]
-                avg = avg_profile[col_key]
-                if col_key in ("median_income", "median_home_value"):
-                    val_str = f"${val:,.0f}"
-                    avg_str = f"${avg:,.0f}"
-                elif col_key in ("pct_prime_gym_age", "pct_bachelors"):
-                    val_str = f"{val:.1f}%"
-                    avg_str = f"{avg:.1f}%"
-                elif col_key == "total_pop":
-                    val_str = f"{val:,.0f}"
-                    avg_str = f"{avg:,.0f}"
-                elif col_key == "market_gap":
-                    val_str = f"{val:,.0f}"
-                    avg_str = f"{avg:,.0f}"
-                else:
-                    val_str = f"{val:.2f}"
-                    avg_str = f"{avg:.2f}"
-                rows.append({"Metric": col_name, "This ZIP": val_str, "UT Avg": avg_str})
-
-            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+            st.plotly_chart(fig_gauge, use_container_width=True)
 
         with col_g2:
-            st.markdown("**Businesses in this ZIP**")
-            biz_table = zip_data[["biz_name", "category_group", "thriving_label", "rating", "review_count"]].copy()
-            biz_table["category_group"] = biz_table["category_group"].map(CATEGORY_LABELS)
-            biz_table.columns = ["Name", "Type", "Status", "Rating", "Reviews"]
-            biz_table = biz_table.sort_values("Status")
-            st.dataframe(biz_table, use_container_width=True, hide_index=True, height=350)
+            if thriving_prob >= 0.65:
+                verdict, verdict_color, verdict_icon = "Strong opportunity", "#2ecc71", "✅"
+            elif thriving_prob >= 0.45:
+                verdict, verdict_color, verdict_icon = "Moderate opportunity", "#f39c12", "⚠️"
+            else:
+                verdict, verdict_color, verdict_icon = "Challenging market", "#e74c3c", "❌"
 
-        # Verdict
+            st.markdown(
+                f"<div style='background:{verdict_color}22;border-left:5px solid {verdict_color};"
+                f"padding:16px;border-radius:4px;margin-top:40px'>"
+                f"<h3 style='color:{verdict_color};margin:0'>{verdict_icon} {verdict}</h3>"
+                f"<p style='margin:8px 0 0'>The Gradient Boosting classifier gives a "
+                f"<b>{thriving_prob * 100:.1f}%</b> chance this business thrives, "
+                f"based on the zip code's demographics, competition density, and business type.</p>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown("**Key inputs used:**")
+            st.markdown(f"- Market gap: **{market_gap:,.0f}**")
+            st.markdown(f"- Income per competitor: **${income_per_comp:,.0f}**")
+            st.markdown(f"- Prime gym age %: **{profile['pct_prime_gym_age']:.1f}%**")
+            st.markdown(f"- Median income: **${profile['median_income']:,.0f}**")
+
         st.divider()
-        score_components = [zip_thriving, cat_thriving]
-        if combo_thriving is not None:
-            score_components.append(combo_thriving)
-        # Market gap bonus: above median = good
-        gap_bonus = 0.1 if avg_market_gap > clf_df["market_gap"].median() else -0.05
-
-        final_score = np.mean(score_components) + gap_bonus
-        final_score = min(max(final_score, 0), 1)
-
-        if final_score >= 0.75:
-            verdict = "Strong opportunity"
-            verdict_color = "#2ecc71"
-            verdict_icon = "✅"
-        elif final_score >= 0.55:
-            verdict = "Moderate opportunity"
-            verdict_color = "#f39c12"
-            verdict_icon = "⚠️"
-        else:
-            verdict = "Challenging market"
-            verdict_color = "#e74c3c"
-            verdict_icon = "❌"
-
-        st.markdown(
-            f"<div style='background:{verdict_color}22;border-left:5px solid {verdict_color};"
-            f"padding:16px;border-radius:4px'>"
-            f"<h3 style='color:{verdict_color};margin:0'>{verdict_icon} {verdict}</h3>"
-            f"<p style='margin:6px 0 0'>Composite score: <b>{final_score * 100:.0f}/100</b> "
-            f"based on ZIP performance, business type success rate, and market gap.</p>"
-            f"</div>",
-            unsafe_allow_html=True,
-        )
+        st.markdown("**Businesses already in this ZIP**")
+        biz_table = zip_data[["biz_name", "category_group", "thriving_label", "rating", "review_count"]].copy()
+        biz_table["category_group"] = biz_table["category_group"].map(CATEGORY_LABELS)
+        biz_table.columns = ["Name", "Type", "Status", "Rating", "Reviews"]
+        st.dataframe(biz_table.sort_values("Status"), use_container_width=True, hide_index=True)
