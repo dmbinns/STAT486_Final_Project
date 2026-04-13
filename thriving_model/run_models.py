@@ -298,18 +298,18 @@ best_k = max(zip(K_range, sil_scores), key=lambda x: x[1])[0]
 print(f'Best K by silhouette: {best_k}')
 
 km_final = KMeans(n_clusters=best_k, random_state=42, n_init=10)
-zip_features['cluster'] = km_final.fit_predict(X_clust)
+zip_features['cluster'] = km_final.fit_predict(X_clust) + 1  # 1-indexed labels
 
 cluster_profile = zip_features.groupby('cluster')[CLUSTER_FEATURES].mean().round(2)
 print('\nCluster profiles:')
 print(cluster_profile.T)
 
 # Map
-colors = ['steelblue', 'tomato', 'seagreen', 'orange', 'purple', 'brown']
+cmap = plt.cm.get_cmap('tab10', best_k)
 fig, ax = plt.subplots(figsize=(8, 10))
 for cid in sorted(zip_features['cluster'].unique()):
     sub = zip_features[zip_features['cluster'] == cid]
-    ax.scatter(sub['lon'], sub['lat'], c=colors[cid], label=f'Cluster {cid}',
+    ax.scatter(sub['lon'], sub['lat'], c=[cmap(cid - 1)], label=f'Cluster {cid}',
                s=sub['total_pop'] / 500, alpha=0.7, edgecolors='white', linewidths=0.5)
 ax.set_xlabel('Longitude'); ax.set_ylabel('Latitude')
 ax.set_title(f'Utah Fitness Market Segments (K={best_k})\npoint size = population')
@@ -317,6 +317,32 @@ ax.legend(); plt.tight_layout()
 plt.savefig('figures/03c_utah_clusters_map.png', dpi=150, bbox_inches='tight')
 plt.close()
 print('Saved figures/03c_utah_clusters_map.png')
+
+# Cluster profile heatmap
+profile_df = zip_features.groupby('cluster')[CLUSTER_FEATURES].mean()
+profile_norm = (profile_df - profile_df.mean()) / profile_df.std()  # z-score each feature
+feature_labels = [
+    'Median Income', 'Median Home Value', 'Pct Prime Gym Age',
+    'Pct Bachelors', 'Total Pop', 'Gyms in Zip', 'Market Gap', 'Avg Rating',
+]
+fig, ax = plt.subplots(figsize=(10, 5))
+sns.heatmap(
+    profile_norm.T,
+    annot=profile_df.T.round(0),
+    fmt='.0f',
+    cmap='RdYlGn',
+    center=0,
+    linewidths=0.5,
+    ax=ax,
+    yticklabels=feature_labels,
+    xticklabels=[f'Cluster {i}' for i in profile_norm.index],
+)
+ax.set_title('Cluster Profiles — Feature Means (color = z-score, annotation = raw value)')
+ax.set_xlabel('Cluster')
+plt.tight_layout()
+plt.savefig('figures/03c_cluster_heatmap.png', dpi=150, bbox_inches='tight')
+plt.close()
+print('Saved figures/03c_cluster_heatmap.png')
 
 # Thriving rate per cluster
 full_df = full_df.merge(zip_features[['zip_code', 'cluster']], on='zip_code', how='left')

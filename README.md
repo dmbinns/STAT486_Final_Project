@@ -20,13 +20,13 @@ A business is considered **thriving** if it is currently open, has a Yelp rating
 |---|---|---|
 | Binary classifier (will it thrive?) | Random Forest | AUC = **0.927**, Accuracy = **87.9%** |
 | Regressor (how successful?) | Gradient Boosting | R² = **0.244**, RMSE = **0.263** |
-| Market segmentation | K-Means | K = **8** clusters, silhouette = 0.35+ |
+| Market segmentation | K-Means | K = **8** clusters, silhouette = **0.204** |
 
 **Top predictive signals:**
-1. **Business category** — general gyms thrive most; boutique studios are mixed
-2. **Income per competitor** — wealthy neighborhoods with few competitors are the ideal location
-3. **Market gap** — prime-age population relative to existing gym supply
-4. **Competition at 3km radius** — saturated local markets suppress individual business success
+1. **Business category** — the single strongest classifier feature; general gyms thrive at only **25%** (the lowest of any category), while mind/body studios (yoga, pilates) and climbing gyms thrive at **100%**
+2. **Education and demographics** — `pct_bachelors`, `median_age`, and `median_home_value` rank highly in both models; higher-educated, older, wealthier zip codes are strongly associated with thriving businesses
+3. **Competition density** — `competition_3km` is the #1 feature in the regressor; counter-intuitively, more competitors correlates with higher success, likely because dense urban markets also have greater demand
+4. **Income per competitor** — a derived signal combining area wealth with local competition load; top 5 in both classifier and regressor importance
 
 ---
 
