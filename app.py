@@ -45,11 +45,11 @@ CATEGORY_LABELS = {
 PALETTE = {"Thriving": "#2ecc71", "Not Thriving": "#e74c3c"}
 
 # ── Header ─────────────────────────────────────────────────────────────────────
-st.title("🏋️ Utah Fitness Business Explorer")
+st.title("Utah Fitness Business Explorer")
 st.caption("Where should you open your next gym? Powered by Yelp + Census data.")
 
 # ── Tabs ───────────────────────────────────────────────────────────────────────
-tab1, tab2, tab3, tab4 = st.tabs(["🗺️ Map", "📍 Best Locations", "🥋 Business Types", "🔍 Location Scorer"])
+tab1, tab2, tab3, tab4 = st.tabs(["Map", "Best Locations", "Business Types", "Location Scorer"])
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 1 — MAP
